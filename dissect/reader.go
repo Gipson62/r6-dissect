@@ -29,8 +29,8 @@ type Reader struct {
 	readPartial              bool // reads up to the player info packets
 	playersRead              int
 	lastKillerFromScoreboard string
-	Header                   Header `json:"header"`
-	MatchFeedback            []MatchUpdate     `json:"matchFeedback"`
+	Header                   Header        `json:"header"`
+	MatchFeedback            []MatchUpdate `json:"matchFeedback"`
 	Scoreboard               Scoreboard
 }
 
@@ -303,7 +303,6 @@ func (r *Reader) Bytes(n int) ([]byte, error) {
 	return r.b[r.offset-n : r.offset], nil
 }
 
-// PeekBack returns up to n bytes before the current offset without changing position
 func (r *Reader) PeekBack(n int) []byte {
 	start := r.offset - n
 	if start < 0 {
@@ -333,7 +332,7 @@ func (r *Reader) String() (string, error) {
 }
 
 func (r *Reader) Uint32() (uint32, error) {
-	if err := r.Skip(1); err != nil { // size- unnecessary since we already know the length
+	if err := r.Skip(1); err != nil {
 		return 0, err
 	}
 	b, err := r.Bytes(4)
@@ -357,5 +356,3 @@ func (r *Reader) Uint64() (uint64, error) {
 func (r *Reader) Write(w io.Writer) (n int, err error) {
 	return w.Write(r.b)
 }
-
-

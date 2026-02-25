@@ -149,12 +149,28 @@ func readMatchFeedback(r *Reader) error {
 		}
 		u.Headshot = headshotPtr
 		isFinishOff := false
+		savedOffset := r.offset
 		if err = r.Skip(20); err == nil {
 			dbnoIndicator, byteErr := r.Int()
-			if byteErr == nil {
-				isFinishOff = dbnoIndicator == 1
+			if byteErr == nil && dbnoIndicator == 1 {
+				isFinishOff = true
 			}
-			r.offset -= 21
+		}
+		r.offset = savedOffset
+		if !isFinishOff {
+			if searchBuf, searchErr := r.Bytes(70); searchErr == nil {
+				dbnoMarker := []byte{0x22, 0x96, 0xe2, 0x29, 0x7f}
+				for j := 0; j <= len(searchBuf)-5; j++ {
+					if bytes.Equal(searchBuf[j:j+5], dbnoMarker) {
+						flagIdx := j + 15
+						if flagIdx < len(searchBuf) && searchBuf[flagIdx] == 0x01 {
+							isFinishOff = true
+						}
+						break
+					}
+				}
+			}
+			r.offset = savedOffset
 		}
 		log.Debug().
 			Str("killer", username).
@@ -207,6 +223,21 @@ func readMatchFeedback(r *Reader) error {
 					break
 				}
 			}
+			if u.DBNOBy == "" {
+				dbnoEvent := MatchUpdate{
+					Type:          DBNO,
+					Username:      username,
+					Target:        u.Target,
+					Time:          u.Time,
+					TimeInSeconds: u.TimeInSeconds,
+				}
+				r.MatchFeedback = append(r.MatchFeedback, dbnoEvent)
+				u.DBNOBy = username
+				log.Debug().
+					Str("knocker", username).
+					Str("target", u.Target).
+					Msg("synthesized DBNO for finish-off")
+			}
 			if r.lastKillerFromScoreboard != u.Username {
 				u.usernameFromScoreboard = r.lastKillerFromScoreboard
 			}
@@ -228,6 +259,18 @@ func readMatchFeedback(r *Reader) error {
 				continue
 			}
 			if val.Target == u.Target || (val.Type == Death && val.Username == u.Target) {
+				timeDiff := val.TimeInSeconds - u.TimeInSeconds
+				if val.Type == Kill && val.DBNOBy == "" && timeDiff >= 0 && timeDiff <= 10 {
+					r.MatchFeedback[i].Type = DBNO
+					u.DBNOBy = val.Username
+					log.Debug().
+						Str("knocker", val.Username).
+						Str("finisher", u.Username).
+						Str("target", u.Target).
+						Float64("timeDiff", timeDiff).
+						Msg("inferred DBNO from duplicate kill")
+					break
+				}
 				sameKiller := val.Username == u.Username
 				isPlantBoundaryKill := defuserPlantTime >= 0 && val.TimeInSeconds <= defuserPlantTime && val.TimeInSeconds >= defuserPlantTime-1
 				if inOvertime {

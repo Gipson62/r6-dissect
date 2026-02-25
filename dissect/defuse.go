@@ -6,7 +6,6 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// getTeamByRole returns the team index with the specified role (Attack or Defense)
 func (r *Reader) getTeamByRole(role TeamRole) int {
 	for i, team := range r.Header.Teams {
 		if team.Role == role {
@@ -16,12 +15,10 @@ func (r *Reader) getTeamByRole(role TeamRole) int {
 	return -1
 }
 
-// getAlivePlayersByTeam returns usernames of players who haven't died yet on a team
 func (r *Reader) getAlivePlayersByTeam(teamIndex int) []string {
 	var alive []string
 	for _, p := range r.Header.Players {
 		if p.TeamIndex == teamIndex {
-			// Check if player has died
 			died := false
 			for _, fb := range r.MatchFeedback {
 				if fb.Type == Kill && fb.Target == p.Username {
@@ -50,20 +47,17 @@ func readDefuserTimer(r *Reader) error {
 	var playerIndex int = -1
 
 	if r.Header.CodeVersion >= Y10S4 {
-		// Y10S4 changed packet structure - player DissectID is no longer included
-		// Try to infer from team roles: attackers plant, defenders disable
 		var targetRole TeamRole
 		if r.planted {
-			targetRole = Defense // Defender is disabling
+			targetRole = Defense
 		} else {
-			targetRole = Attack // Attacker is planting
+			targetRole = Attack
 		}
-		
+
 		teamIndex := r.getTeamByRole(targetRole)
 		if teamIndex >= 0 {
 			alive := r.getAlivePlayersByTeam(teamIndex)
 			if len(alive) == 1 {
-				// Only one player alive on that team - must be them
 				for i, p := range r.Header.Players {
 					if p.Username == alive[0] {
 						playerIndex = i
@@ -108,12 +102,12 @@ func readDefuserTimer(r *Reader) error {
 		a = DefuserPlantComplete
 		r.planted = true
 	}
-	
+
 	username := ""
 	if r.lastDefuserPlayerIndex >= 0 && r.lastDefuserPlayerIndex < len(r.Header.Players) {
 		username = r.Header.Players[r.lastDefuserPlayerIndex].Username
 	}
-	
+
 	u := MatchUpdate{
 		Type:          a,
 		Username:      username,

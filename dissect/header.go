@@ -367,14 +367,14 @@ func (r *Reader) readHeader() (Header, error) {
 			playerData = false
 		}
 		if !playerData {
-			if k != "gmsetting" {
-				props[k] = v
-			} else {
+			if k == "gmsetting" {
 				n, err := strconv.Atoi(v)
 				if err != nil {
 					return Header{}, err
 				}
 				gmSettings = append(gmSettings, n)
+			} else {
+				props[k] = v
 			}
 		} else {
 			switch k {
