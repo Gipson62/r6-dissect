@@ -29,6 +29,8 @@ type Reader struct {
 	readPartial              bool // reads up to the player info packets
 	playersRead              int
 	lastKillerFromScoreboard string
+	targetKillCount          map[string]int
+	targetFirstKnock         map[string]bool
 	Header                   Header        `json:"header"`
 	MatchFeedback            []MatchUpdate `json:"matchFeedback"`
 	Scoreboard               Scoreboard
@@ -46,6 +48,8 @@ func NewReader(in io.Reader) (r *Reader, err error) {
 	r = &Reader{
 		readPartial:            false,
 		lastDefuserPlayerIndex: -1,
+		targetKillCount:        make(map[string]int),
+		targetFirstKnock:       make(map[string]bool),
 	}
 	if chunkedCompression {
 		if err = r.readChunkedData(br); err != nil {
