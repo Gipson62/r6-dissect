@@ -12,6 +12,9 @@
 /*.xlsx
 /*.bin
 /*.txt
+/*.log
+# Debug/utility scripts
+/*.py
 # Memory dumps
 /*.dmp
 
