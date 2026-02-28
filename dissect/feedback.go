@@ -41,6 +41,18 @@ type MatchUpdate struct {
 	usernameFromScoreboard string
 }
 
+func (r *Reader) isValidScoreboardCorrection(correctedKiller string, target string) bool {
+	if correctedKiller == target || len(correctedKiller) == 0 {
+		return false
+	}
+	killerIdx := r.PlayerIndexByUsername(correctedKiller)
+	targetIdx := r.PlayerIndexByUsername(target)
+	if killerIdx < 0 || targetIdx < 0 {
+		return false
+	}
+	return r.Header.Players[killerIdx].TeamIndex != r.Header.Players[targetIdx].TeamIndex
+}
+
 func (i MatchUpdateType) MarshalJSON() (text []byte, err error) {
 	return json.Marshal(stringerIntMarshal{
 		Name: i.String(),
@@ -242,9 +254,11 @@ func readMatchFeedback(r *Reader) error {
 					Str("target", u.Target).
 					Msg("synthesized DBNO for finish-off")
 			}
-			if r.lastKillerFromScoreboard != u.Username {
+			if r.Header.CodeVersion < Y10S4 && len(r.lastKillerFromScoreboard) > 0 && r.lastKillerFromScoreboard != u.Username &&
+				r.isValidScoreboardCorrection(r.lastKillerFromScoreboard, u.Target) {
 				u.usernameFromScoreboard = r.lastKillerFromScoreboard
 			}
+			r.lastKillerFromScoreboard = ""
 			r.MatchFeedback = append(r.MatchFeedback, u)
 			log.Debug().Interface("match_update", u).Send()
 			return nil
@@ -314,9 +328,11 @@ func readMatchFeedback(r *Reader) error {
 				return nil
 			}
 		}
-		if r.lastKillerFromScoreboard != username {
+		if r.Header.CodeVersion < Y10S4 && len(r.lastKillerFromScoreboard) > 0 && r.lastKillerFromScoreboard != username &&
+			r.isValidScoreboardCorrection(r.lastKillerFromScoreboard, u.Target) {
 			u.usernameFromScoreboard = r.lastKillerFromScoreboard
 		}
+		r.lastKillerFromScoreboard = ""
 		r.MatchFeedback = append(r.MatchFeedback, u)
 		log.Debug().Interface("match_update", u).Send()
 		return nil

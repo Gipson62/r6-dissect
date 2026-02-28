@@ -101,6 +101,15 @@ func readDefuserTimer(r *Reader) error {
 	if !r.planted {
 		a = DefuserPlantComplete
 		r.planted = true
+	} else {
+		for i := len(r.MatchFeedback) - 1; i >= 0; i-- {
+			if r.MatchFeedback[i].Type == DefuserDisableComplete {
+				return nil
+			}
+			if r.MatchFeedback[i].Type == DefuserPlantComplete {
+				break
+			}
+		}
 	}
 
 	username := ""
