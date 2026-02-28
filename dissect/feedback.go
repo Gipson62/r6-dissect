@@ -172,7 +172,6 @@ func readMatchFeedback(r *Reader) error {
 			}
 			r.offset = savedOffset
 		}
-		binaryIsFinishOff := isFinishOff
 		if !isFinishOff && r.time == 0 && r.timeRaw != "" && r.Header.CodeVersion >= Y10S4 {
 			isFinishOff = true
 		}
@@ -196,21 +195,10 @@ func readMatchFeedback(r *Reader) error {
 				return nil
 			}
 		}
-		r.targetKillCount[u.Target]++
-		if r.targetKillCount[u.Target] == 1 && !binaryIsFinishOff {
-			r.targetFirstKnock[u.Target] = true
-		}
 		if isFinishOff {
 			for i := len(r.MatchFeedback) - 1; i >= 0; i-- {
 				val := r.MatchFeedback[i]
 				if val.Type == Kill && val.Target == u.Target && val.DBNOBy != "" {
-					if r.targetKillCount[u.Target] >= 3 && r.targetFirstKnock[u.Target] && r.Header.CodeVersion >= Y10S4 {
-						r.MatchFeedback = append(r.MatchFeedback[:i], r.MatchFeedback[i+1:]...)
-						log.Debug().
-							Str("target", u.Target).
-							Msg("reverted kill - player still in DBNO")
-						return nil
-					}
 					return nil
 				}
 			}
