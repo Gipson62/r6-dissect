@@ -37,6 +37,7 @@ type MatchUpdate struct {
 	Message                string          `json:"message,omitempty"`
 	Operator               Operator        `json:"operator,omitempty"`
 	DBNOBy                 string          `json:"dbnoBy,omitempty"`
+	FinishedBy             string          `json:"finishedBy,omitempty"`
 	usernameFromScoreboard string
 }
 
@@ -215,6 +216,9 @@ func readMatchFeedback(r *Reader) error {
 					}
 					u.DBNOBy = knocker
 					u.Username = knocker
+					if username != knocker {
+						u.FinishedBy = username
+					}
 					log.Debug().
 						Str("finisher", username).
 						Str("knocker", knocker).
@@ -262,10 +266,15 @@ func readMatchFeedback(r *Reader) error {
 				timeDiff := val.TimeInSeconds - u.TimeInSeconds
 				if val.Type == Kill && val.DBNOBy == "" && timeDiff >= 0 && timeDiff <= 10 {
 					r.MatchFeedback[i].Type = DBNO
+					finisher := u.Username
+					if u.Username != val.Username {
+						u.FinishedBy = u.Username
+					}
 					u.DBNOBy = val.Username
+					u.Username = val.Username
 					log.Debug().
 						Str("knocker", val.Username).
-						Str("finisher", u.Username).
+						Str("finisher", finisher).
 						Str("target", u.Target).
 						Float64("timeDiff", timeDiff).
 						Msg("inferred DBNO from duplicate kill")
