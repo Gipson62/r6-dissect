@@ -94,14 +94,22 @@ func (r *Reader) roundEnd() {
 			disabler = r.PlayerIndexByUsername(u.Username)
 			break
 		case DefuserDisableComplete:
-			playerIdx := r.PlayerIndexByUsername(u.Username)
-			if playerIdx < 0 || playerIdx >= len(r.Header.Players) {
-				log.Debug().Msg("warn: defuser disable player not found")
-				return
+			if r.Header.CodeVersion >= Y9S4 {
+				winningTeam := 0
+				if r.Header.Teams[1].Won {
+					winningTeam = 1
+				}
+				r.Header.Teams[winningTeam].WinCondition = DisabledDefuser
+			} else {
+				playerIdx := r.PlayerIndexByUsername(u.Username)
+				if playerIdx < 0 || playerIdx >= len(r.Header.Players) {
+					log.Debug().Msg("warn: defuser disable player not found")
+					return
+				}
+				ti := r.Header.Players[playerIdx].TeamIndex
+				r.Header.Teams[ti].Won = true
+				r.Header.Teams[ti].WinCondition = DisabledDefuser
 			}
-			ti := r.Header.Players[playerIdx].TeamIndex
-			r.Header.Teams[ti].Won = true
-			r.Header.Teams[ti].WinCondition = DisabledDefuser
 			return
 		}
 	}

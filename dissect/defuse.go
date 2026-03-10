@@ -1,6 +1,7 @@
 package dissect
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/rs/zerolog/log"
@@ -43,6 +44,13 @@ func readDefuserTimer(r *Reader) error {
 	if err != nil {
 		return err
 	}
+	prevTimer := r.lastDefuserTimer
+	timerValue := -1.0
+	if len(timer) > 0 {
+		if v, parseErr := strconv.ParseFloat(timer, 64); parseErr == nil {
+			timerValue = v
+		}
+	}
 
 	var playerIndex int = -1
 
@@ -77,39 +85,49 @@ func readDefuserTimer(r *Reader) error {
 		playerIndex = r.PlayerIndexByID(id)
 	}
 
-	if playerIndex > -1 && r.lastDefuserPlayerIndex != playerIndex {
+	if playerIndex > -1 {
 		a := DefuserPlantStart
+		recordStartEvent := true
 		if r.planted {
-			a = DefuserDisableStart
+			if timerValue >= 0 && prevTimer >= 0 && timerValue > prevTimer {
+				a = DefuserDisableStart
+				r.defuserDisabling = true
+			} else {
+				recordStartEvent = false
+			}
+		} else {
+			r.defuserDisabling = false
 		}
-		u := MatchUpdate{
-			Type:          a,
-			Username:      r.Header.Players[playerIndex].Username,
-			Time:          r.timeRaw,
-			TimeInSeconds: r.time,
+		if recordStartEvent && r.lastDefuserPlayerIndex != playerIndex {
+			u := MatchUpdate{
+				Type:          a,
+				Username:      r.Header.Players[playerIndex].Username,
+				Time:          r.timeRaw,
+				TimeInSeconds: r.time,
+			}
+			r.MatchFeedback = append(r.MatchFeedback, u)
+			log.Debug().Interface("match_update", u).Send()
+			r.lastDefuserPlayerIndex = playerIndex
 		}
-		r.MatchFeedback = append(r.MatchFeedback, u)
-		log.Debug().Interface("match_update", u).Send()
-		r.lastDefuserPlayerIndex = playerIndex
 	}
 
 	// TODO: 0.00 can be present even if defuser was not disabled.
 	if !strings.HasPrefix(timer, "0.00") {
+		r.lastDefuserTimer = timerValue
 		return nil
 	}
-	a := DefuserDisableComplete
+	eventType := DefuserDisableComplete
 	if !r.planted {
-		a = DefuserPlantComplete
+		eventType = DefuserPlantComplete
 		r.planted = true
+		r.defuserDisabling = false
+	} else if r.defuserDisabling {
+		eventType = DefuserDisableComplete
+		r.defuserDisabling = false
+		r.planted = false
 	} else {
-		for i := len(r.MatchFeedback) - 1; i >= 0; i-- {
-			if r.MatchFeedback[i].Type == DefuserDisableComplete {
-				return nil
-			}
-			if r.MatchFeedback[i].Type == DefuserPlantComplete {
-				break
-			}
-		}
+		r.lastDefuserTimer = timerValue
+		return nil
 	}
 
 	username := ""
@@ -118,12 +136,13 @@ func readDefuserTimer(r *Reader) error {
 	}
 
 	u := MatchUpdate{
-		Type:          a,
+		Type:          eventType,
 		Username:      username,
 		Time:          r.timeRaw,
 		TimeInSeconds: r.time,
 	}
 	r.MatchFeedback = append(r.MatchFeedback, u)
 	log.Debug().Interface("match_update", u).Send()
+	r.lastDefuserTimer = timerValue
 	return nil
 }
