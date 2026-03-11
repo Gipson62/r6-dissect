@@ -248,6 +248,33 @@ func readScoreboardScoreY10S4(r *Reader, score uint32) error {
 		if idx < len(r.Scoreboard.Players) {
 			r.Scoreboard.Players[idx].Score = score
 		}
+
+		// Y10S4+: detect defuser planter/disabler via +100 score bonus
+		if r.pendingDefuserPlantIdx >= 0 {
+			prevScore := r.lastPlayerScores[idx]
+			delta := score - prevScore
+			// Verify the player is on the correct team (attackers plant, defenders disable)
+			correctTeam := false
+			if r.pendingDefuserIsPlant {
+				atkIdx := r.getTeamByRole(Attack)
+				correctTeam = atkIdx >= 0 && r.Header.Players[idx].TeamIndex == atkIdx
+			} else {
+				defIdx := r.getTeamByRole(Defense)
+				correctTeam = defIdx >= 0 && r.Header.Players[idx].TeamIndex == defIdx
+			}
+			if prevScore > 0 && delta == 100 && correctTeam {
+				r.MatchFeedback[r.pendingDefuserPlantIdx].Username = username
+				r.lastDefuserPlayerIndex = idx
+				log.Debug().
+					Str("username", username).
+					Uint32("prevScore", prevScore).
+					Uint32("newScore", score).
+					Msg("defuser_player_identified_by_score")
+				r.pendingDefuserPlantIdx = -1
+			}
+		}
+
+		r.lastPlayerScores[idx] = score
 	}
 	log.Debug().
 		Uint32("score", score).

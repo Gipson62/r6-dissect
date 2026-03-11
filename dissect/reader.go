@@ -36,6 +36,9 @@ type Reader struct {
 	scoreboardIDToPlayer     map[[4]byte]int    // Y10S4+: maps scoreboard entry ID to player index
 	scoreboardInitialKills   map[[4]byte]uint32 // Y10S4+: cumulative kills at round start per sbID
 	scoreboardFinalKills     map[int]uint32     // Y10S4+: latest cumulative kills seen per player index
+	pendingDefuserPlantIdx   int                // Y10S4+: index into MatchFeedback for DefuserPlantComplete/DisableComplete with unknown player (-1 = none)
+	pendingDefuserIsPlant    bool               // Y10S4+: true if pending event is plant (attacker), false if disable (defender)
+	lastPlayerScores         map[int]uint32     // Y10S4+: last known score per player index (for detecting +100 plant/disable bonus)
 	Header                   Header             `json:"header"`
 	MatchFeedback            []MatchUpdate      `json:"matchFeedback"`
 	Scoreboard               Scoreboard
@@ -53,9 +56,11 @@ func NewReader(in io.Reader) (r *Reader, err error) {
 	r = &Reader{
 		readPartial:            false,
 		lastDefuserPlayerIndex: -1,
+		pendingDefuserPlantIdx: -1,
 		scoreboardIDToPlayer:   make(map[[4]byte]int),
 		scoreboardInitialKills: make(map[[4]byte]uint32),
 		scoreboardFinalKills:   make(map[int]uint32),
+		lastPlayerScores:       make(map[int]uint32),
 	}
 	if chunkedCompression {
 		if err = r.readChunkedData(br); err != nil {

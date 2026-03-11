@@ -143,6 +143,14 @@ func readDefuserTimer(r *Reader) error {
 	}
 	r.MatchFeedback = append(r.MatchFeedback, u)
 	log.Debug().Interface("match_update", u).Send()
+
+	// Y10S4+: if we couldn't determine the player, mark this event as pending
+	// so the scoreboard score handler can identify the player via the +100 score bonus.
+	if username == "" && r.Header.CodeVersion >= Y10S4 {
+		r.pendingDefuserPlantIdx = len(r.MatchFeedback) - 1
+		r.pendingDefuserIsPlant = eventType == DefuserPlantComplete
+	}
+
 	r.lastDefuserTimer = timerValue
 	return nil
 }
