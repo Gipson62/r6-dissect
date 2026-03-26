@@ -222,6 +222,18 @@ func readScoreboardScore(r *Reader) error {
 	username := "N/A"
 	if idx != -1 {
 		username = r.Header.Players[idx].Username
+
+		prevScore := r.lastPlayerScores[idx]
+		if prevScore > 0 {
+			delta := score - prevScore
+			if delta == 15 {
+				r.recordScoreBasedDestruction(username, "camera", r.time)
+			} else if delta == 25 {
+				r.recordScoreBasedDestruction(username, "utility", r.time)
+			}
+		}
+		r.lastPlayerScores[idx] = score
+
 		r.Scoreboard.Players[idx].Score = score
 	}
 	log.Debug().
@@ -249,11 +261,10 @@ func readScoreboardScoreY10S4(r *Reader, score uint32) error {
 			r.Scoreboard.Players[idx].Score = score
 		}
 
-		// Y10S4+: detect defuser planter/disabler via +100 score bonus
+		// +100 score bonus identifies defuser planter/disabler
 		if r.pendingDefuserPlantIdx >= 0 {
 			prevScore := r.lastPlayerScores[idx]
 			delta := score - prevScore
-			// Verify the player is on the correct team (attackers plant, defenders disable)
 			correctTeam := false
 			if r.pendingDefuserIsPlant {
 				atkIdx := r.getTeamByRole(Attack)
@@ -271,6 +282,16 @@ func readScoreboardScoreY10S4(r *Reader, score uint32) error {
 					Uint32("newScore", score).
 					Msg("defuser_player_identified_by_score")
 				r.pendingDefuserPlantIdx = -1
+			}
+		}
+
+		prevScore := r.lastPlayerScores[idx]
+		if prevScore > 0 {
+			delta := score - prevScore
+			if delta == 15 {
+				r.recordScoreBasedDestruction(username, "camera", r.time)
+			} else if delta == 25 {
+				r.recordScoreBasedDestruction(username, "utility", r.time)
 			}
 		}
 

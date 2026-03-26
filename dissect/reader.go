@@ -31,16 +31,18 @@ type Reader struct {
 	readPartial              bool // reads up to the player info packets
 	playersRead              int
 	lastKillerFromScoreboard string
-	pendingSBIDs             [][4]byte          // Y10S4+: sbIDs in header-entry order for deferred mapping
-	readPlayerOrder          []int              // Y10S4+: player indices in readPlayer order
-	scoreboardIDToPlayer     map[[4]byte]int    // Y10S4+: maps scoreboard entry ID to player index
-	scoreboardInitialKills   map[[4]byte]uint32 // Y10S4+: cumulative kills at round start per sbID
-	scoreboardFinalKills     map[int]uint32     // Y10S4+: latest cumulative kills seen per player index
-	pendingDefuserPlantIdx   int                // Y10S4+: index into MatchFeedback for DefuserPlantComplete/DisableComplete with unknown player (-1 = none)
-	pendingDefuserIsPlant    bool               // Y10S4+: true if pending event is plant (attacker), false if disable (defender)
-	lastPlayerScores         map[int]uint32     // Y10S4+: last known score per player index (for detecting +100 plant/disable bonus)
-	Header                   Header             `json:"header"`
-	MatchFeedback            []MatchUpdate      `json:"matchFeedback"`
+	pendingSBIDs             [][4]byte           // Y10S4+: sbIDs in header-entry order for deferred mapping
+	readPlayerOrder          []int               // Y10S4+: player indices in readPlayer order
+	scoreboardIDToPlayer     map[[4]byte]int     // Y10S4+: maps scoreboard entry ID to player index
+	scoreboardInitialKills   map[[4]byte]uint32  // Y10S4+: cumulative kills at round start per sbID
+	scoreboardFinalKills     map[int]uint32      // Y10S4+: latest cumulative kills seen per player index
+	pendingDefuserPlantIdx   int                 // Y10S4+: index into MatchFeedback for DefuserPlantComplete/DisableComplete with unknown player (-1 = none)
+	pendingDefuserIsPlant    bool                // Y10S4+: true if pending event is plant (attacker), false if disable (defender)
+	lastPlayerScores         map[int]uint32      // Y10S4+: last known score per player index (for detecting +100 plant/disable bonus)
+	Header                   Header              `json:"header"`
+	MatchFeedback            []MatchUpdate       `json:"matchFeedback"`
+	UtilityEvents            []UtilityEvent      `json:"utilityEvents,omitempty"`
+	CameraDestructions       []CameraDestruction `json:"cameraDestructions,omitempty"`
 	Scoreboard               Scoreboard
 }
 
@@ -61,6 +63,8 @@ func NewReader(in io.Reader) (r *Reader, err error) {
 		scoreboardInitialKills: make(map[[4]byte]uint32),
 		scoreboardFinalKills:   make(map[int]uint32),
 		lastPlayerScores:       make(map[int]uint32),
+		UtilityEvents:          make([]UtilityEvent, 0),
+		CameraDestructions:     make([]CameraDestruction, 0),
 	}
 	if chunkedCompression {
 		if err = r.readChunkedData(br); err != nil {

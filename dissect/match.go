@@ -278,8 +278,10 @@ func (m *MatchReader) WriteJSON(out io.Writer) error {
 func (m *MatchReader) Data() any {
 	type round struct {
 		Header
-		MatchFeedback []MatchUpdate      `json:"matchFeedback"`
-		PlayerStats   []PlayerRoundStats `json:"stats"`
+		MatchFeedback      []MatchUpdate       `json:"matchFeedback"`
+		PlayerStats        []PlayerRoundStats  `json:"stats"`
+		UtilityEvents      []UtilityEvent      `json:"utilityEvents,omitempty"`
+		CameraDestructions []CameraDestruction `json:"cameraDestructions,omitempty"`
 	}
 	type output struct {
 		Rounds      []round            `json:"rounds"`
@@ -288,9 +290,11 @@ func (m *MatchReader) Data() any {
 	rounds := make([]round, 0)
 	for _, r := range m.rounds {
 		rounds = append(rounds, round{
-			Header:        r.Header,
-			MatchFeedback: r.MatchFeedback,
-			PlayerStats:   r.PlayerStats(),
+			Header:             r.Header,
+			MatchFeedback:      r.MatchFeedback,
+			PlayerStats:        r.PlayerStats(),
+			UtilityEvents:      r.UtilityEvents,
+			CameraDestructions: r.CameraDestructions,
 		})
 	}
 	return output{

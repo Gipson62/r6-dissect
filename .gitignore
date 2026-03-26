@@ -15,6 +15,9 @@
 /*.log
 # Debug/utility scripts
 /*.py
+# Markdown docs (except README)
+*.md
+!README.md
 # Memory dumps
 /*.dmp
 
