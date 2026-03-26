@@ -38,6 +38,7 @@ type MatchUpdate struct {
 	Operator               Operator        `json:"operator,omitempty"`
 	DBNOBy                 string          `json:"dbnoBy,omitempty"`
 	FinishedBy             string          `json:"finishedBy,omitempty"`
+	BleedOut               bool            `json:"bleedOut,omitempty"`
 	usernameFromScoreboard string
 }
 
@@ -373,4 +374,32 @@ func readMatchFeedback(r *Reader) error {
 	r.MatchFeedback = append(r.MatchFeedback, u)
 	log.Debug().Interface("match_update", u).Send()
 	return nil
+}
+
+// detectBleedouts marks Death events as bleedouts when the player was previously DBNO'd
+// but never confirmed by a Kill event with a FinishedBy.
+func (r *Reader) detectBleedouts() {
+	// Track which players have unresolved DBNOs (knocked but not yet confirmed/killed)
+	dbnoTargets := make(map[string]int) // target -> index of DBNO event
+
+	for i := range r.MatchFeedback {
+		u := &r.MatchFeedback[i]
+		switch u.Type {
+		case DBNO:
+			dbnoTargets[u.Target] = i
+		case Kill:
+			// Kill with DBNOBy means the DBNO was confirmed (finished off)
+			delete(dbnoTargets, u.Target)
+		case Death:
+			// Death event for a player who was previously DBNO'd = bleedout
+			if _, wasDBNO := dbnoTargets[u.Username]; wasDBNO {
+				u.BleedOut = true
+				delete(dbnoTargets, u.Username)
+				log.Debug().
+					Str("username", u.Username).
+					Float64("time", u.TimeInSeconds).
+					Msg("bleedout_detected")
+			}
+		}
+	}
 }

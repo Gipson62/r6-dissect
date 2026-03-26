@@ -230,6 +230,13 @@ func readScoreboardScore(r *Reader) error {
 				r.recordScoreBasedDestruction(username, "camera", r.time)
 			} else if delta == 25 {
 				r.recordScoreBasedDestruction(username, "utility", r.time)
+			} else if delta == 10 {
+				role := r.getPlayerTeamRole(username)
+				if role == Defense {
+					r.recordScoreBasedDestruction(username, "drone", r.time)
+				}
+			} else if delta == 20 {
+				r.recordScoreBasedDestruction(username, "gadget_deploy", r.time)
 			}
 		}
 		r.lastPlayerScores[idx] = score
@@ -292,6 +299,13 @@ func readScoreboardScoreY10S4(r *Reader, score uint32) error {
 				r.recordScoreBasedDestruction(username, "camera", r.time)
 			} else if delta == 25 {
 				r.recordScoreBasedDestruction(username, "utility", r.time)
+			} else if delta == 10 {
+				role := r.getPlayerTeamRole(username)
+				if role == Defense {
+					r.recordScoreBasedDestruction(username, "drone", r.time)
+				}
+			} else if delta == 20 {
+				r.recordScoreBasedDestruction(username, "gadget_deploy", r.time)
 			}
 		}
 

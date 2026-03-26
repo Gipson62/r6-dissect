@@ -168,6 +168,10 @@ func writeRound(in io.Reader, out io.Writer) error {
 		PlayerStats        []dissect.PlayerRoundStats  `json:"stats"`
 		UtilityEvents      []dissect.UtilityEvent      `json:"utilityEvents,omitempty"`
 		CameraDestructions []dissect.CameraDestruction `json:"cameraDestructions,omitempty"`
+		DroneDestructions  []dissect.DroneDestruction  `json:"droneDestructions,omitempty"`
+		Reinforcements     []dissect.Reinforcement     `json:"reinforcements,omitempty"`
+		Barricades         []dissect.BarricadePlace    `json:"barricades,omitempty"`
+		GadgetDeployments  []dissect.GadgetDeployment  `json:"gadgetDeployments,omitempty"`
 		Movements          []dissect.EntityPositions   `json:"movements,omitempty"`
 	}
 	if err := r.Read(); !dissect.Ok(err) {
@@ -180,6 +184,10 @@ func writeRound(in io.Reader, out io.Writer) error {
 		r.PlayerStats(),
 		r.UtilityEvents,
 		r.CameraDestructions,
+		r.DroneDestructions,
+		r.Reinforcements,
+		r.Barricades,
+		r.GadgetDeployments,
 		r.Movements,
 	})
 }

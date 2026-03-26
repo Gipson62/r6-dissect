@@ -282,6 +282,10 @@ func (m *MatchReader) Data() any {
 		PlayerStats        []PlayerRoundStats  `json:"stats"`
 		UtilityEvents      []UtilityEvent      `json:"utilityEvents,omitempty"`
 		CameraDestructions []CameraDestruction `json:"cameraDestructions,omitempty"`
+		DroneDestructions  []DroneDestruction  `json:"droneDestructions,omitempty"`
+		Reinforcements     []Reinforcement     `json:"reinforcements,omitempty"`
+		Barricades         []BarricadePlace    `json:"barricades,omitempty"`
+		GadgetDeployments  []GadgetDeployment  `json:"gadgetDeployments,omitempty"`
 		Movements          []EntityPositions   `json:"movements,omitempty"`
 	}
 	type output struct {
@@ -296,6 +300,10 @@ func (m *MatchReader) Data() any {
 			PlayerStats:        r.PlayerStats(),
 			UtilityEvents:      r.UtilityEvents,
 			CameraDestructions: r.CameraDestructions,
+			DroneDestructions:  r.DroneDestructions,
+			Reinforcements:     r.Reinforcements,
+			Barricades:         r.Barricades,
+			GadgetDeployments:  r.GadgetDeployments,
 			Movements:          r.Movements,
 		})
 	}

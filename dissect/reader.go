@@ -44,6 +44,10 @@ type Reader struct {
 	MatchFeedback            []MatchUpdate       `json:"matchFeedback"`
 	UtilityEvents            []UtilityEvent      `json:"utilityEvents,omitempty"`
 	CameraDestructions       []CameraDestruction `json:"cameraDestructions,omitempty"`
+	DroneDestructions        []DroneDestruction  `json:"droneDestructions,omitempty"`
+	Reinforcements           []Reinforcement     `json:"reinforcements,omitempty"`
+	Barricades               []BarricadePlace    `json:"barricades,omitempty"`
+	GadgetDeployments        []GadgetDeployment  `json:"gadgetDeployments,omitempty"`
 	Movements                []EntityPositions   `json:"movements,omitempty"`
 	Scoreboard               Scoreboard
 }
@@ -68,6 +72,10 @@ func NewReader(in io.Reader) (r *Reader, err error) {
 		positionsByEntity:      make(map[byte]*EntityPositions),
 		UtilityEvents:          make([]UtilityEvent, 0),
 		CameraDestructions:     make([]CameraDestruction, 0),
+		DroneDestructions:      make([]DroneDestruction, 0),
+		Reinforcements:         make([]Reinforcement, 0),
+		Barricades:             make([]BarricadePlace, 0),
+		GadgetDeployments:      make([]GadgetDeployment, 0),
 		Movements:              make([]EntityPositions, 0),
 	}
 	if chunkedCompression {
@@ -252,6 +260,7 @@ func (r *Reader) Read() (err error) {
 	}
 	if !r.readPartial {
 		r.roundEnd()
+		r.detectBleedouts()
 		r.finalizePositions()
 	}
 	r.b = nil
