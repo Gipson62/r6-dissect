@@ -282,6 +282,7 @@ func (m *MatchReader) Data() any {
 		PlayerStats        []PlayerRoundStats  `json:"stats"`
 		UtilityEvents      []UtilityEvent      `json:"utilityEvents,omitempty"`
 		CameraDestructions []CameraDestruction `json:"cameraDestructions,omitempty"`
+		Movements          []EntityPositions   `json:"movements,omitempty"`
 	}
 	type output struct {
 		Rounds      []round            `json:"rounds"`
@@ -295,6 +296,7 @@ func (m *MatchReader) Data() any {
 			PlayerStats:        r.PlayerStats(),
 			UtilityEvents:      r.UtilityEvents,
 			CameraDestructions: r.CameraDestructions,
+			Movements:          r.Movements,
 		})
 	}
 	return output{

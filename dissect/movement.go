@@ -13,3 +13,13 @@ type CameraDestruction struct {
 	TimeInSeconds float64 `json:"time"`
 }
 
+type PlayerPosition struct {
+	X float32 `json:"x"`
+	Y float32 `json:"y"`
+	Z float32 `json:"z"`
+}
+
+type EntityPositions struct {
+	EntityID  byte             `json:"entityId"`
+	Positions []PlayerPosition `json:"positions"`
+}

@@ -31,18 +31,20 @@ type Reader struct {
 	readPartial              bool // reads up to the player info packets
 	playersRead              int
 	lastKillerFromScoreboard string
-	pendingSBIDs             [][4]byte           // Y10S4+: sbIDs in header-entry order for deferred mapping
-	readPlayerOrder          []int               // Y10S4+: player indices in readPlayer order
-	scoreboardIDToPlayer     map[[4]byte]int     // Y10S4+: maps scoreboard entry ID to player index
-	scoreboardInitialKills   map[[4]byte]uint32  // Y10S4+: cumulative kills at round start per sbID
-	scoreboardFinalKills     map[int]uint32      // Y10S4+: latest cumulative kills seen per player index
-	pendingDefuserPlantIdx   int                 // Y10S4+: index into MatchFeedback for DefuserPlantComplete/DisableComplete with unknown player (-1 = none)
-	pendingDefuserIsPlant    bool                // Y10S4+: true if pending event is plant (attacker), false if disable (defender)
-	lastPlayerScores         map[int]uint32      // Y10S4+: last known score per player index (for detecting +100 plant/disable bonus)
+	pendingSBIDs             [][4]byte          // Y10S4+: sbIDs in header-entry order for deferred mapping
+	readPlayerOrder          []int              // Y10S4+: player indices in readPlayer order
+	scoreboardIDToPlayer     map[[4]byte]int    // Y10S4+: maps scoreboard entry ID to player index
+	scoreboardInitialKills   map[[4]byte]uint32 // Y10S4+: cumulative kills at round start per sbID
+	scoreboardFinalKills     map[int]uint32     // Y10S4+: latest cumulative kills seen per player index
+	pendingDefuserPlantIdx   int                // Y10S4+: index into MatchFeedback for DefuserPlantComplete/DisableComplete with unknown player (-1 = none)
+	pendingDefuserIsPlant    bool               // Y10S4+: true if pending event is plant (attacker), false if disable (defender)
+	lastPlayerScores         map[int]uint32     // Y10S4+: last known score per player index (for detecting +100 plant/disable bonus)
+	positionsByEntity        map[byte]*EntityPositions
 	Header                   Header              `json:"header"`
 	MatchFeedback            []MatchUpdate       `json:"matchFeedback"`
 	UtilityEvents            []UtilityEvent      `json:"utilityEvents,omitempty"`
 	CameraDestructions       []CameraDestruction `json:"cameraDestructions,omitempty"`
+	Movements                []EntityPositions   `json:"movements,omitempty"`
 	Scoreboard               Scoreboard
 }
 
@@ -63,8 +65,10 @@ func NewReader(in io.Reader) (r *Reader, err error) {
 		scoreboardInitialKills: make(map[[4]byte]uint32),
 		scoreboardFinalKills:   make(map[int]uint32),
 		lastPlayerScores:       make(map[int]uint32),
+		positionsByEntity:      make(map[byte]*EntityPositions),
 		UtilityEvents:          make([]UtilityEvent, 0),
 		CameraDestructions:     make([]CameraDestruction, 0),
+		Movements:              make([]EntityPositions, 0),
 	}
 	if chunkedCompression {
 		if err = r.readChunkedData(br); err != nil {
@@ -90,6 +94,7 @@ func NewReader(in io.Reader) (r *Reader, err error) {
 	r.Listen([]byte{0xEC, 0xDA, 0x4F, 0x80}, readScoreboardScore)
 	r.Listen([]byte{0x4D, 0x73, 0x7F, 0x9E}, readScoreboardAssists)
 	r.Listen([]byte{0x1C, 0xD2, 0xB1, 0x9D}, readScoreboardKills)
+	r.Listen([]byte{0x60, 0x73, 0x85, 0xFE}, readPosition)
 	return r, err
 }
 
@@ -247,6 +252,7 @@ func (r *Reader) Read() (err error) {
 	}
 	if !r.readPartial {
 		r.roundEnd()
+		r.finalizePositions()
 	}
 	r.b = nil
 	return err
@@ -374,4 +380,96 @@ func (r *Reader) Uint64() (uint64, error) {
 
 func (r *Reader) Write(w io.Writer) (n int, err error) {
 	return w.Write(r.b)
+}
+
+func (r *Reader) Float32() (float32, error) {
+	b, err := r.Bytes(4)
+	if err != nil {
+		return 0, err
+	}
+	return math.Float32frombits(binary.LittleEndian.Uint32(b)), nil
+}
+
+func readPosition(r *Reader) error {
+	entityID, err := r.Bytes(1)
+	if err != nil {
+		return err
+	}
+	if err := r.Skip(1); err != nil {
+		return err
+	}
+	x, err := r.Float32()
+	if err != nil {
+		return err
+	}
+	y, err := r.Float32()
+	if err != nil {
+		return err
+	}
+	z, err := r.Float32()
+	if err != nil {
+		return err
+	}
+	if math.IsNaN(float64(x)) || math.IsNaN(float64(y)) || math.IsNaN(float64(z)) {
+		return nil
+	}
+	if math.IsInf(float64(x), 0) || math.IsInf(float64(y), 0) || math.IsInf(float64(z), 0) {
+		return nil
+	}
+	// Filter: must have meaningful X or Y (not all-zero / Z-only entities)
+	if math.Abs(float64(x)) < 0.1 && math.Abs(float64(y)) < 0.1 {
+		return nil
+	}
+	// Filter: reasonable R6 map coordinate bounds
+	if x < -100 || x > 100 || y < -100 || y > 100 || z < -20 || z > 20 {
+		return nil
+	}
+	eid := entityID[0]
+	ep, ok := r.positionsByEntity[eid]
+	if !ok {
+		ep = &EntityPositions{EntityID: eid}
+		r.positionsByEntity[eid] = ep
+	}
+	ep.Positions = append(ep.Positions, PlayerPosition{
+		X: x,
+		Y: y,
+		Z: z,
+	})
+	return nil
+}
+
+func (r *Reader) finalizePositions() {
+	for _, ep := range r.positionsByEntity {
+		if len(ep.Positions) < 100 {
+			continue
+		}
+		// Require meaningful X and Y range (real player movement)
+		var minX, maxX, minY, maxY float32
+		minX, maxX = ep.Positions[0].X, ep.Positions[0].X
+		minY, maxY = ep.Positions[0].Y, ep.Positions[0].Y
+		for _, p := range ep.Positions[1:] {
+			if p.X < minX {
+				minX = p.X
+			}
+			if p.X > maxX {
+				maxX = p.X
+			}
+			if p.Y < minY {
+				minY = p.Y
+			}
+			if p.Y > maxY {
+				maxY = p.Y
+			}
+		}
+		xRange := maxX - minX
+		yRange := maxY - minY
+		if xRange < 1.0 && yRange < 1.0 {
+			continue
+		}
+		r.Movements = append(r.Movements, *ep)
+	}
+	sort.Slice(r.Movements, func(i, j int) bool {
+		return len(r.Movements[i].Positions) > len(r.Movements[j].Positions)
+	})
+	log.Debug().Int("entities", len(r.Movements)).Msg("position_tracking_complete")
 }
