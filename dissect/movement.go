@@ -21,5 +21,6 @@ type PlayerPosition struct {
 
 type EntityPositions struct {
 	EntityID  byte             `json:"entityId"`
+	Team      string           `json:"team"`
 	Positions []PlayerPosition `json:"positions"`
 }

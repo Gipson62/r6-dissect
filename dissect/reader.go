@@ -439,6 +439,7 @@ func readPosition(r *Reader) error {
 }
 
 func (r *Reader) finalizePositions() {
+	candidates := make([]*EntityPositions, 0)
 	for _, ep := range r.positionsByEntity {
 		if len(ep.Positions) < 100 {
 			continue
@@ -466,10 +467,46 @@ func (r *Reader) finalizePositions() {
 		if xRange < 1.0 && yRange < 1.0 {
 			continue
 		}
+		// Filter non-player entities: skip if first 5 positions are near origin (game objects)
+		nearOrigin := true
+		limit := 5
+		if limit > len(ep.Positions) {
+			limit = len(ep.Positions)
+		}
+		for _, p := range ep.Positions[:limit] {
+			if math.Abs(float64(p.X)) > 2.0 || math.Abs(float64(p.Y)) > 2.0 {
+				nearOrigin = false
+				break
+			}
+		}
+		if nearOrigin {
+			continue
+		}
+		candidates = append(candidates, ep)
+	}
+
+	// Sort by position count descending
+	sort.Slice(candidates, func(i, j int) bool {
+		return len(candidates[i].Positions) > len(candidates[j].Positions)
+	})
+
+	// Classify entities into Defense/Attack.
+	// The replay records more position samples for defenders (near the recording camera/site).
+	// In R6S 5v5, there are exactly 5 defenders. The top 5 entities by position count
+	// are consistently the defense-side entities across all tested matches.
+	defenseCount := 5
+	if len(candidates) < 7 {
+		// With fewer entities, use the majority as defense
+		defenseCount = (len(candidates) + 1) / 2
+	}
+	for i, ep := range candidates {
+		if i < defenseCount {
+			ep.Team = string(Defense)
+		} else {
+			ep.Team = string(Attack)
+		}
 		r.Movements = append(r.Movements, *ep)
 	}
-	sort.Slice(r.Movements, func(i, j int) bool {
-		return len(r.Movements[i].Positions) > len(r.Movements[j].Positions)
-	})
+
 	log.Debug().Int("entities", len(r.Movements)).Msg("position_tracking_complete")
 }
