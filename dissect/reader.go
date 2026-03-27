@@ -425,12 +425,10 @@ func readPosition(r *Reader) error {
 	if math.IsInf(float64(x), 0) || math.IsInf(float64(y), 0) || math.IsInf(float64(z), 0) {
 		return nil
 	}
-	// Filter: must have meaningful X or Y (not all-zero / Z-only entities)
-	if math.Abs(float64(x)) < 0.1 && math.Abs(float64(y)) < 0.1 {
+	if math.Abs(float64(x)) < 0.01 && math.Abs(float64(y)) < 0.01 {
 		return nil
 	}
-	// Filter: reasonable R6 map coordinate bounds
-	if x < -100 || x > 100 || y < -100 || y > 100 || z < -20 || z > 20 {
+	if x < -500 || x > 500 || y < -500 || y > 500 || z < -100 || z > 100 {
 		return nil
 	}
 	eid := entityID[0]
@@ -450,70 +448,40 @@ func readPosition(r *Reader) error {
 func (r *Reader) finalizePositions() {
 	candidates := make([]*EntityPositions, 0)
 	for _, ep := range r.positionsByEntity {
-		if len(ep.Positions) < 100 {
-			continue
-		}
-		// Require meaningful X and Y range (real player movement)
-		var minX, maxX, minY, maxY float32
-		minX, maxX = ep.Positions[0].X, ep.Positions[0].X
-		minY, maxY = ep.Positions[0].Y, ep.Positions[0].Y
-		for _, p := range ep.Positions[1:] {
-			if p.X < minX {
-				minX = p.X
-			}
-			if p.X > maxX {
-				maxX = p.X
-			}
-			if p.Y < minY {
-				minY = p.Y
-			}
-			if p.Y > maxY {
-				maxY = p.Y
-			}
-		}
-		xRange := maxX - minX
-		yRange := maxY - minY
-		if xRange < 1.0 && yRange < 1.0 {
-			continue
-		}
-		// Filter non-player entities: skip if first 5 positions are near origin (game objects)
-		nearOrigin := true
-		limit := 5
-		if limit > len(ep.Positions) {
-			limit = len(ep.Positions)
-		}
-		for _, p := range ep.Positions[:limit] {
-			if math.Abs(float64(p.X)) > 2.0 || math.Abs(float64(p.Y)) > 2.0 {
-				nearOrigin = false
-				break
-			}
-		}
-		if nearOrigin {
+		if len(ep.Positions) < 10 {
 			continue
 		}
 		candidates = append(candidates, ep)
 	}
 
-	// Sort by position count descending
+	// Player entities have the lowest entity IDs, matching header order
 	sort.Slice(candidates, func(i, j int) bool {
-		return len(candidates[i].Positions) > len(candidates[j].Positions)
+		return candidates[i].EntityID < candidates[j].EntityID
 	})
 
-	// Classify entities into Defense/Attack.
-	// The replay records more position samples for defenders (near the recording camera/site).
-	// In R6S 5v5, there are exactly 5 defenders. The top 5 entities by position count
-	// are consistently the defense-side entities across all tested matches.
-	defenseCount := 5
-	if len(candidates) < 7 {
-		// With fewer entities, use the majority as defense
-		defenseCount = (len(candidates) + 1) / 2
+	playerCount := len(r.Header.Players)
+	if playerCount == 0 {
+		playerCount = 10
 	}
+	if len(candidates) > playerCount {
+		candidates = candidates[:playerCount]
+	}
+
 	for i, ep := range candidates {
-		if i < defenseCount {
-			ep.Team = string(Defense)
+		if i < 5 {
+			ep.Team = string(TeamRole(r.Header.Teams[0].Role))
 		} else {
-			ep.Team = string(Attack)
+			ep.Team = string(TeamRole(r.Header.Teams[1].Role))
 		}
+		if i < len(r.Header.Players) {
+			ep.Username = r.Header.Players[i].Username
+		}
+		log.Debug().
+			Uint8("entityID", ep.EntityID).
+			Str("player", ep.Username).
+			Str("team", ep.Team).
+			Int("positions", len(ep.Positions)).
+			Msg("entity_player_mapping")
 		r.Movements = append(r.Movements, *ep)
 	}
 
