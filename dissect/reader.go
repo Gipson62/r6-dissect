@@ -40,6 +40,7 @@ type Reader struct {
 	pendingDefuserIsPlant    bool               // Y10S4+: true if pending event is plant (attacker), false if disable (defender)
 	lastPlayerScores         map[int]uint32     // Y10S4+: last known score per player index (for detecting +100 plant/disable bonus)
 	positionsByEntity        map[byte]*EntityPositions
+	positionRawAfter         map[byte][][]byte // raw bytes after XYZ per entity for quaternion calibration
 	Header                   Header              `json:"header"`
 	MatchFeedback            []MatchUpdate       `json:"matchFeedback"`
 	UtilityEvents            []UtilityEvent      `json:"utilityEvents,omitempty"`
@@ -70,6 +71,7 @@ func NewReader(in io.Reader) (r *Reader, err error) {
 		scoreboardFinalKills:   make(map[int]uint32),
 		lastPlayerScores:       make(map[int]uint32),
 		positionsByEntity:      make(map[byte]*EntityPositions),
+		positionRawAfter:       make(map[byte][][]byte),
 		UtilityEvents:          make([]UtilityEvent, 0),
 		CameraDestructions:     make([]CameraDestruction, 0),
 		DroneDestructions:      make([]DroneDestruction, 0),
@@ -442,6 +444,11 @@ func readPosition(r *Reader) error {
 		Y: y,
 		Z: z,
 	})
+	// Read raw bytes after XYZ for quaternion rotation calibration (up to 100 bytes)
+	rawAfter, err := r.Bytes(100)
+	if err == nil {
+		r.positionRawAfter[eid] = append(r.positionRawAfter[eid], rawAfter)
+	}
 	return nil
 }
 
@@ -476,14 +483,156 @@ func (r *Reader) finalizePositions() {
 		if i < len(r.Header.Players) {
 			ep.Username = r.Header.Players[i].Username
 		}
+
+		// Calibrate quaternion offsets for this entity and extract yaw/pitch
+		quatOffsets := r.calibrateQuaternionOffsets(ep.EntityID)
+		if len(quatOffsets) > 0 {
+			r.extractRotations(ep, quatOffsets)
+		}
+
 		log.Debug().
 			Uint8("entityID", ep.EntityID).
 			Str("player", ep.Username).
 			Str("team", ep.Team).
 			Int("positions", len(ep.Positions)).
+			Ints("quatOffsets", quatOffsets).
 			Msg("entity_player_mapping")
 		r.Movements = append(r.Movements, *ep)
 	}
 
+	// Free raw rotation data
+	r.positionRawAfter = nil
+
 	log.Debug().Int("entities", len(r.Movements)).Msg("position_tracking_complete")
+}
+
+// calibrateQuaternionOffsets finds all offsets after position XYZ where
+// a unit quaternion (4 floats with magnitude ≈ 1.0) appears consistently.
+// Returns offsets sorted by priority: view direction (high pitch variance) first,
+// then body rotation offsets. This allows per-position fallback.
+func (r *Reader) calibrateQuaternionOffsets(entityID byte) []int {
+	rawSlices := r.positionRawAfter[entityID]
+	if len(rawSlices) == 0 {
+		return nil
+	}
+
+	type candidate struct {
+		offset   int
+		count    int
+		pitchVar float64
+	}
+	threshold := len(rawSlices) / 10 // 10% minimum for entities with mixed packet formats
+	if threshold < 3 {
+		threshold = 3
+	}
+
+	var candidates []candidate
+
+	for tryOff := 0; tryOff <= 84; tryOff++ {
+		if tryOff+16 > 100 {
+			break
+		}
+		quatCount := 0
+		var pitchSum, pitchSqSum float64
+		for _, raw := range rawSlices {
+			if tryOff+16 > len(raw) {
+				continue
+			}
+			q0 := math.Float32frombits(binary.LittleEndian.Uint32(raw[tryOff : tryOff+4]))
+			q1 := math.Float32frombits(binary.LittleEndian.Uint32(raw[tryOff+4 : tryOff+8]))
+			q2 := math.Float32frombits(binary.LittleEndian.Uint32(raw[tryOff+8 : tryOff+12]))
+			q3 := math.Float32frombits(binary.LittleEndian.Uint32(raw[tryOff+12 : tryOff+16]))
+
+			if math.IsNaN(float64(q0)) || math.IsInf(float64(q0), 0) ||
+				math.IsNaN(float64(q1)) || math.IsInf(float64(q1), 0) ||
+				math.IsNaN(float64(q2)) || math.IsInf(float64(q2), 0) ||
+				math.IsNaN(float64(q3)) || math.IsInf(float64(q3), 0) {
+				continue
+			}
+
+			mag := q0*q0 + q1*q1 + q2*q2 + q3*q3
+			if mag > 0.95 && mag < 1.05 {
+				quatCount++
+				sinP := float64(2 * (q0*q2 - q3*q1))
+				if sinP > 1 {
+					sinP = 1
+				} else if sinP < -1 {
+					sinP = -1
+				}
+				pitch := math.Asin(sinP) * 180 / math.Pi
+				pitchSum += pitch
+				pitchSqSum += pitch * pitch
+			}
+		}
+		if quatCount >= threshold {
+			var pitchVar float64
+			if quatCount > 1 {
+				mean := pitchSum / float64(quatCount)
+				pitchVar = pitchSqSum/float64(quatCount) - mean*mean
+			}
+			candidates = append(candidates, candidate{tryOff, quatCount, pitchVar})
+		}
+	}
+
+	if len(candidates) == 0 {
+		return nil
+	}
+
+	// Sort: high pitch variance first (view direction), then by count
+	sort.Slice(candidates, func(i, j int) bool {
+		ci, cj := candidates[i], candidates[j]
+		if (ci.pitchVar > 1.0) != (cj.pitchVar > 1.0) {
+			return ci.pitchVar > 1.0
+		}
+		return ci.count > cj.count
+	})
+
+	offsets := make([]int, len(candidates))
+	for i, c := range candidates {
+		offsets[i] = c.offset
+	}
+	return offsets
+}
+
+// extractRotations reads quaternion data from stored raw bytes and populates
+// Yaw/Pitch fields on each PlayerPosition. Tries offsets in priority order
+// (view direction first, then body rotation) and uses the first valid quaternion.
+func (r *Reader) extractRotations(ep *EntityPositions, quatOffsets []int) {
+	rawSlices := r.positionRawAfter[ep.EntityID]
+	if len(rawSlices) != len(ep.Positions) {
+		return
+	}
+
+	for i, raw := range rawSlices {
+		for _, quatOffset := range quatOffsets {
+			if quatOffset+16 > len(raw) {
+				continue
+			}
+			q0 := math.Float32frombits(binary.LittleEndian.Uint32(raw[quatOffset : quatOffset+4]))
+			q1 := math.Float32frombits(binary.LittleEndian.Uint32(raw[quatOffset+4 : quatOffset+8]))
+			q2 := math.Float32frombits(binary.LittleEndian.Uint32(raw[quatOffset+8 : quatOffset+12]))
+			q3 := math.Float32frombits(binary.LittleEndian.Uint32(raw[quatOffset+12 : quatOffset+16]))
+
+			mag := q0*q0 + q1*q1 + q2*q2 + q3*q3
+			if mag < 0.95 || mag > 1.05 {
+				continue
+			}
+
+			// Quaternion to Euler: yaw (Z-axis rotation) and pitch (Y-axis rotation)
+			yaw := float32(math.Atan2(float64(2*(q0*q3+q1*q2)), float64(1-2*(q2*q2+q3*q3))) * 180 / math.Pi)
+			sinP := float64(2 * (q0*q2 - q3*q1))
+			if sinP > 1 {
+				sinP = 1
+			} else if sinP < -1 {
+				sinP = -1
+			}
+			pitch := float32(math.Asin(sinP) * 180 / math.Pi)
+
+			if !math.IsNaN(float64(yaw)) && !math.IsNaN(float64(pitch)) {
+				ep.Positions[i].Yaw = yaw
+				ep.Positions[i].Pitch = pitch
+				break // Use first valid quaternion (highest priority offset)
+			}
+		}
+	}
 }

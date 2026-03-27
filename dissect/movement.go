@@ -36,9 +36,11 @@ type GadgetDeployment struct {
 }
 
 type PlayerPosition struct {
-	X float32 `json:"x"`
-	Y float32 `json:"y"`
-	Z float32 `json:"z"`
+	X     float32 `json:"x"`
+	Y     float32 `json:"y"`
+	Z     float32 `json:"z"`
+	Yaw   float32 `json:"yaw,omitempty"`
+	Pitch float32 `json:"pitch,omitempty"`
 }
 
 type EntityPositions struct {
