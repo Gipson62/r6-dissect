@@ -11,12 +11,14 @@ Download the latest version here: https://github.com/redraskal/r6-dissect/releas
 ## Current Features
 - Match Info (Game version, map, gamemode, match type, teams, players)
 - Match Feedback (Kills, headshots, objective locates, defuser plants/disables, BattlEye bans, DCs)
+- Scoreboard (Kills, assists, scores per player)
+- Player Position Tracking (All 10 players mapped by entity ID with team assignment)
+- Tactical Events (Camera destructions, drone destructions, reinforcements, barricades, gadget deployments)
 - JSON or Excel output
 
 ## Planned Features
 - UI alternative
 - Track bullet hits/misses
-- Track movement packets
 - Track other player statistics
 
 ### See roadmap at https://github.com/users/redraskal/projects/1.
