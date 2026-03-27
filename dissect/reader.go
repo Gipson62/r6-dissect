@@ -41,6 +41,8 @@ type Reader struct {
 	lastPlayerScores         map[int]uint32     // Y10S4+: last known score per player index (for detecting +100 plant/disable bonus)
 	positionsByEntity        map[byte]*EntityPositions
 	positionRawAfter         map[byte][][]byte // raw bytes after XYZ per entity for quaternion calibration
+	roomEntityToPlayer       map[byte]int      // maps room entity bytes to player indices for location tracking
+	roomEntityOrder          []byte            // tracks entity bytes in first-appearance order (first 10 = players)
 	Header                   Header              `json:"header"`
 	MatchFeedback            []MatchUpdate       `json:"matchFeedback"`
 	UtilityEvents            []UtilityEvent      `json:"utilityEvents,omitempty"`
@@ -50,6 +52,7 @@ type Reader struct {
 	Barricades               []BarricadePlace    `json:"barricades,omitempty"`
 	GadgetDeployments        []GadgetDeployment  `json:"gadgetDeployments,omitempty"`
 	Movements                []EntityPositions   `json:"movements,omitempty"`
+	LocationEvents           []LocationEvent     `json:"locationEvents,omitempty"`
 	Scoreboard               Scoreboard
 }
 
@@ -72,6 +75,7 @@ func NewReader(in io.Reader) (r *Reader, err error) {
 		lastPlayerScores:       make(map[int]uint32),
 		positionsByEntity:      make(map[byte]*EntityPositions),
 		positionRawAfter:       make(map[byte][][]byte),
+		roomEntityToPlayer:    make(map[byte]int),
 		UtilityEvents:          make([]UtilityEvent, 0),
 		CameraDestructions:     make([]CameraDestruction, 0),
 		DroneDestructions:      make([]DroneDestruction, 0),

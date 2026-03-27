@@ -49,3 +49,9 @@ type EntityPositions struct {
 	Team      string           `json:"team"`
 	Positions []PlayerPosition `json:"positions"`
 }
+
+type LocationEvent struct {
+	Username      string  `json:"username,omitempty"`
+	Room          string  `json:"room"`
+	TimeInSeconds float64 `json:"time"`
+}

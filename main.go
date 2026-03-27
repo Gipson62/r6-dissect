@@ -173,6 +173,7 @@ func writeRound(in io.Reader, out io.Writer) error {
 		Barricades         []dissect.BarricadePlace    `json:"barricades,omitempty"`
 		GadgetDeployments  []dissect.GadgetDeployment  `json:"gadgetDeployments,omitempty"`
 		Movements          []dissect.EntityPositions   `json:"movements,omitempty"`
+		LocationEvents     []dissect.LocationEvent     `json:"locationEvents,omitempty"`
 	}
 	if err := r.Read(); !dissect.Ok(err) {
 		return err
@@ -189,6 +190,7 @@ func writeRound(in io.Reader, out io.Writer) error {
 		r.Barricades,
 		r.GadgetDeployments,
 		r.Movements,
+		r.LocationEvents,
 	})
 }
 

@@ -287,6 +287,7 @@ func (m *MatchReader) Data() any {
 		Barricades         []BarricadePlace    `json:"barricades,omitempty"`
 		GadgetDeployments  []GadgetDeployment  `json:"gadgetDeployments,omitempty"`
 		Movements          []EntityPositions   `json:"movements,omitempty"`
+		LocationEvents     []LocationEvent     `json:"locationEvents,omitempty"`
 	}
 	type output struct {
 		Rounds      []round            `json:"rounds"`
@@ -305,6 +306,7 @@ func (m *MatchReader) Data() any {
 			Barricades:         r.Barricades,
 			GadgetDeployments:  r.GadgetDeployments,
 			Movements:          r.Movements,
+			LocationEvents:     r.LocationEvents,
 		})
 	}
 	return output{
