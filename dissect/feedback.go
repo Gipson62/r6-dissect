@@ -338,7 +338,6 @@ func readMatchFeedback(r *Reader) error {
 		log.Debug().Interface("match_update", u).Send()
 		return nil
 	}
-	// TODO: Y9S1 may have removed or modified other match feedback options
 	if r.Header.CodeVersion >= Y9S1 {
 		return nil
 	}

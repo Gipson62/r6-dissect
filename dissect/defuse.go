@@ -111,7 +111,7 @@ func readDefuserTimer(r *Reader) error {
 		}
 	}
 
-	// TODO: 0.00 can be present even if defuser was not disabled.
+	// NOTE: 0.00 can be present even if defuser was not disabled.
 	if !strings.HasPrefix(timer, "0.00") {
 		r.lastDefuserTimer = timerValue
 		return nil

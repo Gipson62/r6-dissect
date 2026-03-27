@@ -61,10 +61,6 @@ func dissect_read(input *C.char) *C.char {
 			return C.CString(res)
 		}
 		j := m.Data()
-		if err != nil {
-			res := convertErrorForExport(err)
-			return C.CString(res)
-		}
 		res := convertForExport(j)
 		return C.CString(res)
 	} else {

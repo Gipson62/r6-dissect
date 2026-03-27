@@ -215,7 +215,6 @@ const (
 )
 
 // duplicated code here could be avoided by defining a generic function accepting any Number type.
-// that kind of constraint is still experimental though (as of Go 1.20.2): https://pkg.go.dev/golang.org/x/exp/constraints
 
 func (i MatchType) MarshalJSON() (text []byte, err error) {
 	return json.Marshal(stringerIntMarshal{
