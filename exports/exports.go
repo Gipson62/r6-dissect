@@ -4,9 +4,10 @@ package main
 import "C"
 import (
 	"encoding/json"
+	"os"
+
 	"github.com/redraskal/r6-dissect/dissect"
 	"github.com/rs/zerolog"
-	"os"
 )
 
 func marshalToString(v any) string {

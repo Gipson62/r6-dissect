@@ -17,6 +17,8 @@ Download the latest version here: https://github.com/redraskal/r6-dissect/releas
 - **Tactical Events** — Camera destructions, drone destructions, reinforcements, barricades, gadget deployments
 - **Output Formats** — JSON or Excel (.xlsx)
 
+### See roadmap at https://github.com/users/redraskal/projects/1.
+
 ## CLI Usage
 Print a match overview by specifying a match folder or .rec file:
 ```bash
