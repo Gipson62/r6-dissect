@@ -43,19 +43,19 @@ Example output (abbreviated):
   ],
   "players": [
     {
-      "id": 11004941918022611138,
-      "username": "Ahmed",
+      "id": 1830934665040226621,
+      "username": "IanFiftyForty",
       "teamIndex": 0,
-      "operator": { "name": "SolidSnake", "id": 444310693746 }
+      "operator": { "name": "Oryx", "id": 104189664155 }
     }
   ],
   "matchFeedback": [
-    { "type": "Kill", "username": "Ahmed", "target": "Shka_--", "headshot": true, "time": "1:42", "timeInSeconds": 102 }
+    { "type": "Kill", "username": "ReithYT", "target": "Ambatakum.", "headshot": false, "time": "1:51", "timeInSeconds": 111 }
   ],
   "movements": [
     {
       "entityId": 160,
-      "username": "Ahmed",
+      "username": "IanFiftyForty",
       "team": "Attack",
       "positions": [
         { "x": -12.87, "y": -63.22, "z": 0.264, "yaw": -180, "pitch": 5.3 }
