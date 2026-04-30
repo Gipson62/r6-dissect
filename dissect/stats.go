@@ -14,6 +14,7 @@ type PlayerRoundStats struct {
 	Operator           string        `json:"-"`
 	Kills              int           `json:"kills"`
 	DBNOs              int           `json:"dbnos"`
+	Revives            int           `json:"revives"`
 	Died               bool          `json:"died"`
 	Assists            int           `json:"assists"`
 	Headshots          int           `json:"headshots"`
@@ -28,6 +29,7 @@ type PlayerMatchStats struct {
 	Rounds             int     `json:"rounds"`
 	Kills              int     `json:"kills"`
 	DBNOs              int     `json:"dbnos"`
+	Revives            int     `json:"revives"`
 	Deaths             int     `json:"deaths"`
 	Assists            int     `json:"assists"`
 	Headshots          int     `json:"headshots"`
@@ -120,6 +122,8 @@ func (r *Reader) PlayerStats() []PlayerRoundStats {
 			lastDeath = index[a.Target]
 		} else if a.Type == DBNO {
 			stats[i].DBNOs += 1
+		} else if a.Type == Revive {
+			stats[i].Revives += 1
 		} else if a.Type == Death {
 			stats[i].Died = true
 			lastDeath = i
@@ -217,6 +221,7 @@ func (m *MatchReader) PlayerStats() []PlayerMatchStats {
 			stats[i].Rounds += 1
 			stats[i].Kills += p.Kills
 			stats[i].DBNOs += p.DBNOs
+			stats[i].Revives += p.Revives
 			if p.Died {
 				stats[i].Deaths += 1
 			}

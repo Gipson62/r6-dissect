@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"sort"
 	"strings"
 
 	"github.com/rs/zerolog/log"
@@ -25,6 +26,7 @@ const (
 	PlayerLeave
 	Other
 	DBNO
+	Revive
 )
 
 type MatchUpdate struct {
@@ -52,6 +54,95 @@ func (r *Reader) isValidScoreboardCorrection(correctedKiller string, target stri
 		return false
 	}
 	return r.Header.Players[killerIdx].TeamIndex != r.Header.Players[targetIdx].TeamIndex
+}
+
+func (r *Reader) detectRevivesFromScore() {
+	sort.SliceStable(r.pendingRevives, func(i, j int) bool {
+		return r.pendingRevives[i].TimeInSeconds > r.pendingRevives[j].TimeInSeconds
+	})
+	for _, candidate := range r.pendingRevives {
+		r.recordReviveFromScore(candidate)
+	}
+	r.pendingRevives = nil
+}
+
+func (r *Reader) recordReviveFromScore(candidate scoreReviveCandidate) {
+	targets := r.unresolvedDBNOTargetsForReviver(candidate.Username, candidate.TimeInSeconds)
+	if len(targets) == 0 {
+		return
+	}
+	target := ""
+	if len(targets) == 1 {
+		target = targets[0]
+	}
+	u := MatchUpdate{
+		Type:          Revive,
+		Username:      candidate.Username,
+		Target:        target,
+		Time:          candidate.Time,
+		TimeInSeconds: candidate.TimeInSeconds,
+	}
+	r.insertMatchUpdateByTime(u)
+	log.Debug().
+		Str("reviver", candidate.Username).
+		Strs("candidates", targets).
+		Str("target", target).
+		Float64("time", candidate.TimeInSeconds).
+		Msg("revive_detected")
+}
+
+func (r *Reader) unresolvedDBNOTargetsForReviver(username string, reviveTime float64) []string {
+	reviverIdx := r.PlayerIndexByUsername(username)
+	if reviverIdx < 0 || reviverIdx >= len(r.Header.Players) {
+		return nil
+	}
+	reviverTeam := r.Header.Players[reviverIdx].TeamIndex
+	targets := make([]string, 0)
+
+	for _, u := range r.MatchFeedback {
+		if u.Type != DBNO || u.Target == "" || u.TimeInSeconds < reviveTime {
+			continue
+		}
+		targetIdx := r.PlayerIndexByUsername(u.Target)
+		if targetIdx < 0 || targetIdx >= len(r.Header.Players) ||
+			r.Header.Players[targetIdx].TeamIndex != reviverTeam || u.Target == username {
+			continue
+		}
+		if r.dbnoResolvedBetween(u.Target, u.TimeInSeconds, reviveTime) {
+			continue
+		}
+		targets = append(targets, u.Target)
+	}
+	sort.Strings(targets)
+	return targets
+}
+
+func (r *Reader) dbnoResolvedBetween(target string, dbnoTime float64, reviveTime float64) bool {
+	for _, u := range r.MatchFeedback {
+		if u.TimeInSeconds > dbnoTime || u.TimeInSeconds < reviveTime {
+			continue
+		}
+		if u.Type == Kill && u.Target == target {
+			return true
+		}
+		if u.Type == Death && u.Username == target {
+			return true
+		}
+		if u.Type == Revive && u.Target == target {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *Reader) insertMatchUpdateByTime(update MatchUpdate) {
+	for i, existing := range r.MatchFeedback {
+		if existing.TimeInSeconds < update.TimeInSeconds {
+			r.MatchFeedback = append(r.MatchFeedback[:i], append([]MatchUpdate{update}, r.MatchFeedback[i:]...)...)
+			return
+		}
+	}
+	r.MatchFeedback = append(r.MatchFeedback, update)
 }
 
 func (i MatchUpdateType) MarshalJSON() (text []byte, err error) {
@@ -388,6 +479,8 @@ func (r *Reader) detectBleedouts() {
 			dbnoTargets[u.Target] = i
 		case Kill:
 			// Kill with DBNOBy means the DBNO was confirmed (finished off)
+			delete(dbnoTargets, u.Target)
+		case Revive:
 			delete(dbnoTargets, u.Target)
 		case Death:
 			// Death event for a player who was previously DBNO'd = bleedout

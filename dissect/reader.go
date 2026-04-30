@@ -39,6 +39,7 @@ type Reader struct {
 	pendingDefuserPlantIdx   int                // Y10S4+: index into MatchFeedback for DefuserPlantComplete/DisableComplete with unknown player (-1 = none)
 	pendingDefuserIsPlant    bool               // Y10S4+: true if pending event is plant (attacker), false if disable (defender)
 	lastPlayerScores         map[int]uint32     // Y10S4+: last known score per player index (for detecting +100 plant/disable bonus)
+	pendingRevives           []scoreReviveCandidate
 	positionsByEntity        map[byte]*EntityPositions
 	positionRawAfter         map[byte][][]byte   // raw bytes after XYZ per entity for quaternion calibration
 	roomEntityToPlayer       map[byte]int        // maps room entity bytes to player indices for location tracking
@@ -266,6 +267,7 @@ func (r *Reader) Read() (err error) {
 	}
 	if !r.readPartial {
 		r.roundEnd()
+		r.detectRevivesFromScore()
 		r.detectBleedouts()
 		r.finalizePositions()
 	}

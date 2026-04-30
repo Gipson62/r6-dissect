@@ -6,6 +6,12 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+type scoreReviveCandidate struct {
+	Username      string
+	Time          string
+	TimeInSeconds float64
+}
+
 type Scoreboard struct {
 	Players []ScoreboardPlayer
 }
@@ -224,7 +230,7 @@ func readScoreboardScore(r *Reader) error {
 		username = r.Header.Players[idx].Username
 
 		prevScore := r.lastPlayerScores[idx]
-		if prevScore > 0 {
+		if prevScore > 0 && score > prevScore {
 			delta := score - prevScore
 			if delta == 15 {
 				r.recordScoreBasedDestruction(username, "camera", r.time)
@@ -237,6 +243,12 @@ func readScoreboardScore(r *Reader) error {
 				}
 			} else if delta == 20 {
 				r.recordScoreBasedDestruction(username, "gadget_deploy", r.time)
+			} else if delta == 50 {
+				r.pendingRevives = append(r.pendingRevives, scoreReviveCandidate{
+					Username:      username,
+					Time:          r.timeRaw,
+					TimeInSeconds: r.time,
+				})
 			}
 		}
 		r.lastPlayerScores[idx] = score
@@ -293,7 +305,7 @@ func readScoreboardScoreY10S4(r *Reader, score uint32) error {
 		}
 
 		prevScore := r.lastPlayerScores[idx]
-		if prevScore > 0 {
+		if prevScore > 0 && score > prevScore {
 			delta := score - prevScore
 			if delta == 15 {
 				r.recordScoreBasedDestruction(username, "camera", r.time)
@@ -306,6 +318,12 @@ func readScoreboardScoreY10S4(r *Reader, score uint32) error {
 				}
 			} else if delta == 20 {
 				r.recordScoreBasedDestruction(username, "gadget_deploy", r.time)
+			} else if delta == 50 {
+				r.pendingRevives = append(r.pendingRevives, scoreReviveCandidate{
+					Username:      username,
+					Time:          r.timeRaw,
+					TimeInSeconds: r.time,
+				})
 			}
 		}
 
